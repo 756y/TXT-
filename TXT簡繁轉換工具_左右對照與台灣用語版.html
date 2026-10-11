@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TXT 簡繁字形轉換工具</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f3f6fb;
+    --panel: #ffffff;
+    --text: #202b3c;
+    --muted: #64748b;
+    --line: #d9e2ef;
+    --accent: #4f63d8;
+    --accent-hover: #3d4fbd;
+    --original-bg: #fff8eb;
+    --original-line: #e8c98d;
+    --original-ink: #895d16;
+    --result-bg: #eefaf5;
+    --result-line: #9fd8c1;
+    --result-ink: #167252;
+    --shadow: 0 10px 28px rgba(31, 48, 79, .07);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg: #101722;
+      --panel: #192332;
+      --text: #e8eef8;
+      --muted: #a1aec2;
+      --line: #344257;
+      --accent: #8796ff;
+      --accent-hover: #a0acff;
+      --original-bg: #30291d;
+      --original-line: #79613a;
+      --original-ink: #f0cb83;
+      --result-bg: #172f2b;
+      --result-line: #397c68;
+      --result-ink: #8be0bf;
+      --shadow: 0 10px 28px rgba(0, 0, 0, .18);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 30px 16px 48px;
+    background: radial-gradient(ellipse at top, color-mix(in srgb, var(--accent) 7%, var(--bg)), var(--bg) 55%);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    line-height: 1.65;
+  }
+  main { width: min(1120px, 100%); margin: 0 auto; }
+  h1 { margin: 0 0 8px; font-size: clamp(1.55rem, 4vw, 2.2rem); line-height: 1.3; letter-spacing: .01em; }
+  .intro { margin: 0 0 24px; color: var(--muted); line-height: 1.8; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 18px;
+    padding: clamp(16px, 3vw, 24px); margin: 16px 0; box-shadow: var(--shadow);
+  }
+  .field-label { display: block; font-weight: 750; margin-bottom: 12px; font-size: 1.03rem; }
+  .dropzone {
+    display: block; border: 2px dashed var(--line); border-radius: 15px; padding: 27px 16px;
+    text-align: center; cursor: pointer; background: color-mix(in srgb, var(--accent) 3%, var(--panel));
+    transition: border-color .18s, background .18s, transform .18s;
+  }
+  .dropzone:hover, .dropzone.dragover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--panel)); }
+  .dropzone:active { transform: scale(.995); }
+  .dropzone strong { display: block; margin-bottom: 5px; font-size: 1.02rem; }
+  .muted { color: var(--muted); font-size: .92rem; }
+  input[type=file] { display: none; }
+  input[type=checkbox], input[type=radio] { accent-color: var(--accent); width: 17px; height: 17px; flex: 0 0 auto; }
+  .filename { margin-top: 12px; overflow-wrap: anywhere; font-size: .93rem; }
+  .options { display: flex; flex-wrap: wrap; gap: 12px 18px; margin-top: 16px; }
+  .options label { display: flex; gap: 9px; align-items: flex-start; cursor: pointer; }
+  .options label:has(input[type=checkbox]) { padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--accent) 4%, var(--panel)); }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+  button {
+    border: 1px solid var(--line); border-radius: 11px; padding: 11px 16px; font: inherit;
+    font-weight: 700; cursor: pointer; background: var(--panel); color: var(--text);
+    transition: background .15s, border-color .15s, transform .15s;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); transform: translateY(-1px); }
+  button.primary { background: var(--accent); color: white; border-color: var(--accent); }
+  button.primary:hover:not(:disabled) { background: var(--accent-hover); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .status { min-height: 1.5em; margin-top: 14px; color: var(--muted); overflow-wrap: anywhere; }
+  .notice { font-size: .91rem; color: var(--muted); line-height: 1.75; }
+  .preview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+  .preview-column { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 15px; background: var(--panel); }
+  .preview-heading { display: flex; align-items: center; gap: 9px; font-weight: 800; padding: 12px 14px; margin: 0; border-bottom: 1px solid var(--line); }
+  .preview-heading::before { content: ""; width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+  .preview-column:first-child { border-color: var(--original-line); }
+  .preview-column:first-child .preview-heading { background: var(--original-bg); color: var(--original-ink); border-bottom-color: var(--original-line); }
+  .preview-column:first-child .preview-heading::before { background: var(--original-ink); }
+  .preview-column:last-child { border-color: var(--result-line); }
+  .preview-column:last-child .preview-heading { background: var(--result-bg); color: var(--result-ink); border-bottom-color: var(--result-line); }
+  .preview-column:last-child .preview-heading::before { background: var(--result-ink); }
+  .preview { white-space: pre-wrap; overflow-wrap: anywhere; min-height: 220px; max-height: 480px; overflow: auto; padding: 15px; font-family: ui-monospace, SFMono-Regular, Consolas, "Noto Sans Mono CJK TC", monospace; font-size: .9rem; line-height: 1.8; tab-size: 4; }
+  .preview-column:first-child .preview { background: color-mix(in srgb, var(--original-bg) 38%, var(--panel)); }
+  .preview-column:last-child .preview { background: color-mix(in srgb, var(--result-bg) 38%, var(--panel)); }
+  #stats { margin-top: 13px; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 5%, var(--panel)); }
+  #vocabularyPanel { padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: color-mix(in srgb, var(--accent) 3%, var(--panel)); }
+  .term-list { margin: 10px 0 0; padding-left: 1.5rem; line-height: 1.85; }
+  .term-list li { overflow-wrap: anywhere; padding: 2px 0; }
+  .hidden { display: none !important; }
+  footer { color: var(--muted); font-size: .85rem; text-align: center; margin-top: 24px; }
+  @media (max-width: 680px) {
+    body { padding: 20px 11px 32px; }
+    .preview-grid { grid-template-columns: 1fr; }
+    .preview { min-height: 160px; max-height: 320px; }
+    .actions button { flex: 1 1 100%; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>TXT 簡繁字形轉換工具</h1>
+  <p class="intro">將簡體中文 TXT 轉成繁體字形，保留原本用詞、標點、空白、換行與段落結構。所有處理都在瀏覽器本機完成，不會上傳檔案。</p>
+
+  <section class="panel">
+    <span class="field-label">1. 選擇 TXT 文字檔</span>
+    <label class="dropzone" id="dropzone" for="fileInput">
+      <strong>點擊選擇檔案，或將 TXT 拖曳到這裡</strong>
+      <span class="muted">目前只接受 .txt 檔案</span>
+    </label>
+    <input id="fileInput" type="file" accept=".txt,text/plain">
+    <div id="filename" class="filename muted">尚未選擇檔案</div>
+
+    <div class="options" role="group" aria-label="轉換方向">
+      <label><input type="radio" name="direction" value="tw" checked> 簡體 → 繁體（台灣正體字形）</label>
+    </div>
+    <div class="options">
+      <label><input type="checkbox" id="convertVocabulary"> 同時轉換中國大陸用語為台灣常用用語</label>
+    </div>
+    <p class="notice">勾選後會在字形轉換完成後，套用常見詞彙對照表；未勾選時只轉字形，不改寫用詞。</p>
+    <div class="actions">
+      <button class="primary" id="convertBtn" disabled>轉換文字</button>
+      <button id="downloadBtn" disabled>下載轉換後 TXT</button>
+      <button id="resetBtn">清除／重新選擇</button>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+  </section>
+
+  <section class="panel hidden" id="previewPanel">
+    <span class="field-label">2. 原文與轉換結果對照</span>
+    <p class="notice">左右並排檢查原文與轉換後內容。手機畫面會改為上下排列。預覽過長時可在各自區域內捲動；下載檔案包含完整內容。</p>
+    <div class="preview-grid">
+      <div class="preview-column">
+        <div class="preview-heading">原始文件</div>
+        <div id="originalPreview" class="preview"></div>
+      </div>
+      <div class="preview-column">
+        <div class="preview-heading">轉換後文件</div>
+        <div id="preview" class="preview"></div>
+      </div>
+    </div>
+    <div id="stats" class="muted" style="margin-top:10px"></div>
+    <section id="vocabularyPanel" class="hidden" style="margin-top:18px">
+      <span class="field-label">3. 本次實際轉換的詞彙</span>
+      <p class="notice">只列出這份文件中實際找到並替換的詞彙，並顯示出現次數。</p>
+      <ul id="vocabularyList" class="term-list"></ul>
+    </section>
+  </section>
+
+  <section class="panel">
+    <span class="field-label">轉換原則</span>
+    <ul class="notice">
+      <li>使用 OpenCC 的台灣正體字形字典；未勾選用語轉換時，只轉字形，不做「软件 → 軟體」這類用詞改寫。</li>
+      <li>勾選「中國大陸用語 → 台灣常用用語」後，會套用內建常見詞彙表，並列出本次實際替換的詞彙與次數。詞彙仍可能因語境而需人工校對。</li>
+      <li>保留原有標點、空格、空白行與換行，不重新排版。</li>
+      <li>若原文包含繁簡一對多或需依語境判斷的字，單純字形映射可能無法百分之百判定。</li>
+      <li>轉換結果使用 UTF-8 編碼輸出。</li>
+    </ul>
+  </section>
+  <footer>不需安裝 · 檔案不會離開你的裝置 · 首次轉換需要網路載入字典</footer>
+</main>
+
+<!-- OpenCC 的繁簡字形映射資料；首次載入需網路，載入後本工具即能轉換當前檔案。 -->
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const fileInput = $('fileInput');
+  const dropzone = $('dropzone');
+  const filename = $('filename');
+  const status = $('status');
+  const convertBtn = $('convertBtn');
+  const downloadBtn = $('downloadBtn');
+  const resetBtn = $('resetBtn');
+  const previewPanel = $('previewPanel');
+  const preview = $('preview');
+  const originalPreview = $('originalPreview');
+  const stats = $('stats');
+  const convertVocabulary = $('convertVocabulary');
+  const vocabularyPanel = $('vocabularyPanel');
+  const vocabularyList = $('vocabularyList');
+
+  let selectedFile = null;
+  let originalText = '';
+  let convertedText = '';
+  let hadBOM = false;
+  let newlineStyle = '\n';
+  let converterPromise = null;
+  let appliedVocabulary = [];
+
+  // OpenCC 字形轉換後的常見大陸用語 → 台灣用語對照。只在勾選時套用。
+  // 這是常用詞表，不可能涵蓋所有領域或語境；替換結果會在下方列出供人工核對。
+  const vocabularyMap = {
+    '软件':'軟體','硬件':'硬體','程序':'程式','信息':'資訊','数据':'資料','网络':'網路',
+    '互联网':'網際網路','鼠标':'滑鼠','键盘':'鍵盤','屏幕':'螢幕','显示器':'顯示器','打印机':'印表機',
+    '文件夹':'資料夾','文件':'檔案','视频':'影片','音频':'音訊','图片':'圖片','照片':'照片',
+    '默认':'預設','设置':'設定','配置':'設定','应用':'應用程式','应用程序':'應用程式','账号':'帳號',
+    '账户':'帳戶','用户名':'使用者名稱','密码':'密碼','登录':'登入','注销':'登出','注册':'註冊',
+    '下载':'下載','上传':'上傳','链接':'連結','网页':'網頁','网站':'網站','浏览器':'瀏覽器',
+    '搜索':'搜尋','查找':'尋找','信息栏':'資訊列','菜单':'選單','选项':'選項','界面':'介面',
+    '用户':'使用者','客户端':'用戶端','服务器':'伺服器','数据库':'資料庫','云端':'雲端','云服务':'雲端服務',
+    '移动硬盘':'外接硬碟','硬盘':'硬碟','内存':'記憶體','存储':'儲存','闪存':'快閃記憶體',
+    '充电宝':'行動電源','手机':'手機','智能手机':'智慧型手機','平板电脑':'平板電腦','笔记本电脑':'筆記型電腦',
+    '耳机':'耳機','无线':'無線','蓝牙':'藍牙','路由器':'路由器','打印':'列印','扫描':'掃描',
+    '快递':'宅配','外卖':'外送','出租车':'計程車','网约车':'叫車服務','公交车':'公車','地铁':'捷運',
+    '高铁':'高鐵','火车站':'火車站','小区':'社區','物业':'社區管理','身份证':'身分證','身份证号':'身分證字號',
+    '银行卡':'金融卡','信用卡':'信用卡','发票':'發票','小票':'收據','收银台':'收銀台','超市':'超市',
+    '便利店':'便利商店','快餐':'速食','外套':'外套','土豆':'馬鈴薯','西红柿':'番茄','番茄酱':'番茄醬',
+    '冰箱':'冰箱','空调':'冷氣','洗手间':'洗手間','卫生间':'廁所','垃圾桶':'垃圾桶','塑料':'塑膠',
+    '质量':'品質','品质':'品質','售后':'售後服務','客服':'客服','人工客服':'真人客服','工号':'員工編號',
+    '视频通话':'視訊通話','视频会议':'視訊會議','直播':'直播','弹幕':'留言彈幕','评论区':'留言區',
+    '点赞':'按讚','收藏':'收藏','关注':'追蹤','粉丝':'粉絲','博主':'創作者','短视频':'短影音',
+    '公众号':'官方帳號','朋友圈':'朋友圈','群聊':'群組聊天','私信':'私訊','消息':'訊息','短信':'簡訊',
+    '验证码':'驗證碼','二维码':'QR Code','人工智能':'人工智慧','机器学习':'機器學習','大数据':'大數據',
+    '算法':'演算法','程序员':'程式設計師','开发者':'開發者','软件工程师':'軟體工程師','代码':'程式碼',
+    '源代码':'原始碼','开源':'開源','插件':'外掛','扩展程序':'擴充功能','更新':'更新','升级':'升級',
+    '卸载':'解除安裝','安装包':'安裝檔','安装':'安裝','兼容':'相容','优化':'最佳化','性能':'效能',
+    '崩溃':'當機','死机':'當機','卡顿':'卡頓','闪退':'閃退','重启':'重新啟動','关机':'關機','开机':'開機',
+    '待机':'待機','电源':'電源','电池':'電池','屏保':'螢幕保護程式','桌面':'桌面','任务栏':'工作列',
+    '回收站':'資源回收筒','剪切板':'剪貼簿','复制粘贴':'複製貼上','粘贴':'貼上','剪切':'剪下',
+    '表格':'表格','电子表格':'試算表','幻灯片':'投影片','演示文稿':'簡報','邮件':'電子郵件','邮箱':'電子郵件信箱',
+    '附件':'附件','主题':'主旨','抄送':'副本','打印预览':'列印預覽','保存':'儲存','另存为':'另存新檔',
+    '取消':'取消','确定':'確定','完成':'完成','提交':'提交','发送':'傳送','返回':'返回','退出':'離開',
+    '首页':'首頁','主页':'首頁','下一页':'下一頁','上一页':'上一頁','刷新':'重新整理','加载':'載入',
+    '进度条':'進度列','复选框':'核取方塊','单选框':'單選按鈕','下拉菜单':'下拉式選單','快捷键':'快速鍵',
+    '热键':'快速鍵','输入法':'輸入法','简体中文':'簡體中文','繁体中文':'繁體中文','台湾省':'台灣',
+    '大陆':'中國大陸','质量保证':'品質保證','售卖':'販售','购买':'購買','促销':'促銷','打折':'折扣',
+    '优惠券':'折價券','订单':'訂單','购物车':'購物車','商品':'商品','快递员':'宅配員','包邮':'免運費',
+    '地址栏':'網址列','网址':'網址','手机号':'手機號碼','电话号码':'電話號碼','联系人':'聯絡人',
+    '信息安全':'資訊安全','隐私':'隱私','隐私政策':'隱私權政策','权限':'權限','授权':'授權',
+    '文件名':'檔名','文件大小':'檔案大小','文本':'文字','字符':'字元','字体':'字型','字号':'字級',
+    '行间距':'行距','段落':'段落','格式刷':'格式刷','表情包':'迷因圖','动图':'動圖','截图':'截圖',
+    '录屏':'螢幕錄影','录音':'錄音','摄像头':'攝影機','麦克风':'麥克風','投屏':'投放螢幕',
+    '充电器':'充電器','数据线':'傳輸線','插头':'插頭','插座':'插座','电梯':'電梯','停车场':'停車場',
+    '停车位':'停車位','小票':'收據','发货':'出貨','收货地址':'收件地址','退款':'退款','退货':'退貨',
+    '售罄':'售完','库存':'庫存','预售':'預購','包裹':'包裹','快递单号':'貨運單號','物流':'物流',
+    '套餐':'方案','流量':'行動數據','话费':'電信費','宽带':'寬頻','无线网络':'無線網路',
+    '热点':'熱點','移动数据':'行動數據','通话记录':'通話紀錄','通讯录':'通訊錄','联系人列表':'聯絡人清單',
+    '日历':'行事曆','备忘录':'備忘錄','待办事项':'待辦事項','提醒事项':'提醒事項','闹钟':'鬧鐘',
+    '计算器':'計算機','手电筒':'手電筒','相册':'相簿','文件管理器':'檔案管理員','文件传输':'檔案傳輸'
+  };
+
+  function setStatus(message) { status.textContent = message; }
+  function getDirection() {
+    return document.querySelector('input[name="direction"]:checked').value;
+  }
+  function loadConverter() {
+    if (!converterPromise) {
+      converterPromise = new Promise((resolve, reject) => {
+        if (window.OpenCC && typeof window.OpenCC.Converter === 'function') {
+          resolve(window.OpenCC);
+          return;
+        }
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.js';
+        script.onload = () => {
+          if (window.OpenCC && typeof window.OpenCC.Converter === 'function') resolve(window.OpenCC);
+          else {
+            converterPromise = null;
+            script.remove();
+            reject(new Error('轉換元件載入後找不到正確的轉換介面，請重新整理頁面後再試。'));
+          }
+        };
+        script.onerror = () => {
+          converterPromise = null;
+          script.remove();
+          reject(new Error('無法載入轉換元件。請確認網路連線後再試。'));
+        };
+        document.head.appendChild(script);
+      });
+    }
+    return converterPromise;
+  }
+
+  async function readFile(file) {
+    if (!file) return;
+    if (!/\.txt$/i.test(file.name) && file.type !== 'text/plain') {
+      setStatus('檔案格式不符，請選擇 TXT 文字檔。');
+      return;
+    }
+    selectedFile = file;
+    originalText = '';
+    convertedText = '';
+    downloadBtn.disabled = true;
+    previewPanel.classList.add('hidden');
+    vocabularyPanel.classList.add('hidden');
+    vocabularyList.replaceChildren();
+    appliedVocabulary = [];
+    filename.textContent = '讀取中：' + file.name;
+    setStatus('正在讀取檔案……');
+    try {
+      const buffer = await file.arrayBuffer();
+      let bytes = new Uint8Array(buffer);
+      hadBOM = bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF;
+      // 先以 UTF-8 解碼；若含大量替代字元，嘗試常見的繁體中文 Windows 編碼。
+      let decoded = new TextDecoder('utf-8').decode(bytes);
+      if ((decoded.match(/\uFFFD/g) || []).length > 0 && 'Big5' in window) {
+        try {
+          const big5 = new TextDecoder('big5').decode(bytes);
+          if ((big5.match(/\uFFFD/g) || []).length < (decoded.match(/\uFFFD/g) || []).length) decoded = big5;
+        } catch (_) {}
+      }
+      if (hadBOM) decoded = decoded.replace(/^\uFEFF/, '');
+      originalText = decoded;
+      newlineStyle = originalText.includes('\r\n') ? '\r\n' : (originalText.includes('\r') ? '\r' : '\n');
+      filename.textContent = '已選擇：' + file.name + '（' + file.size.toLocaleString() + ' bytes）';
+      convertBtn.disabled = false;
+      setStatus('檔案讀取完成。選擇轉換方向後，按「轉換文字」。');
+    } catch (error) {
+      setStatus('讀取失敗：' + error.message);
+      convertBtn.disabled = true;
+    }
+  }
+
+  function escapeRegExp(value) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function applyVocabulary(text) {
+    const found = new Map();
+    // 先處理較長詞條，避免「文件」先吃掉「文件夹」等長詞。
+    const terms = Object.keys(vocabularyMap).sort((a, b) => b.length - a.length);
+    for (const term of terms) {
+      const re = new RegExp(escapeRegExp(term), 'g');
+      // 若來源與目標文字完全相同（例如「返回 → 返回」），不做替換也不列入清單。
+      if (term === vocabularyMap[term]) continue;
+      let count = 0;
+      text = text.replace(re, () => {
+        count++;
+        return vocabularyMap[term];
+      });
+      if (count > 0) found.set(term + ' → ' + vocabularyMap[term], count);
+    }
+    return { text, found };
+  }
+
+  function renderVocabulary(found) {
+    vocabularyList.replaceChildren();
+    if (!convertVocabulary.checked) {
+      vocabularyPanel.classList.add('hidden');
+      return;
+    }
+    vocabularyPanel.classList.remove('hidden');
+    if (!found || found.size === 0) {
+      const li = document.createElement('li');
+      li.textContent = '本次沒有找到詞彙表中可替換的用語。';
+      vocabularyList.appendChild(li);
+      return;
+    }
+    for (const [term, count] of found) {
+      const li = document.createElement('li');
+      li.textContent = term + '（' + count + ' 次）';
+      vocabularyList.appendChild(li);
+    }
+  }
+
+  async function convert() {
+    if (!selectedFile || originalText === '') {
+      if (selectedFile && originalText === '') {
+        // 空白 TXT 也是有效檔案，仍允許產出空白結果。
+      } else return;
+    }
+    convertBtn.disabled = true;
+    setStatus('正在準備字形轉換元件……');
+    try {
+      const OpenCC = await loadConverter();
+      // opencc-js 的 to 欄位要使用 locale（tw），不能填配置名稱（例如 s2twp）；
+      // 使用 tw 只轉成台灣正體字形，不額外改寫成台灣慣用詞。
+      if (!OpenCC || typeof OpenCC.Converter !== 'function') {
+        throw new Error('轉換元件載入成功，但找不到 Converter API。請重新整理頁面後再試。');
+      }
+      const converter = OpenCC.Converter({ from: 'cn', to: 'tw' });
+      // 用語詞表先對原文套用，這樣「软件 → 軟體」等簡體詞條也能被正確偵測。
+      // 完全相同的替換（例如「返回 → 返回」）會略過，不列在結果清單。
+      let sourceForConversion = originalText;
+      appliedVocabulary = [];
+      if (convertVocabulary.checked) {
+        const vocabularyResult = applyVocabulary(sourceForConversion);
+        sourceForConversion = vocabularyResult.text;
+        appliedVocabulary = vocabularyResult.found;
+      }
+      // 不拆段、不 trim、不改換行，僅將文字交給字形映射器。
+      const result = converter(sourceForConversion);
+      convertedText = result;
+      const previewLimit = 12000;
+      originalPreview.textContent = originalText.slice(0, previewLimit) + (originalText.length > previewLimit ? '\n\n……（原文預覽僅顯示前 12,000 個字元）' : '');
+      preview.textContent = convertedText.slice(0, previewLimit) + (convertedText.length > previewLimit ? '\n\n……（轉換結果預覽僅顯示前 12,000 個字元，下載檔案包含完整內容）' : '');
+      stats.textContent = '原文 ' + originalText.length.toLocaleString() + ' 字元；轉換後 ' + convertedText.length.toLocaleString() + ' 字元。' + (convertVocabulary.checked ? ' 已套用台灣用語對照。' : ' 僅轉換字形。');
+      renderVocabulary(appliedVocabulary);
+      previewPanel.classList.remove('hidden');
+      downloadBtn.disabled = false;
+      setStatus('轉換完成。請確認左右對照與用語清單，再下載 TXT 檔案。');
+    } catch (error) {
+      setStatus('轉換失敗：' + error.message);
+    } finally {
+      convertBtn.disabled = false;
+    }
+  }
+
+  function download() {
+    if (convertedText === null || !selectedFile) return;
+    const output = (hadBOM ? '\uFEFF' : '') + convertedText;
+    const blob = new Blob([output], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const base = selectedFile.name.replace(/\.txt$/i, '');
+    a.href = url;
+    a.download = base + '_繁體.txt';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setStatus('已開始下載：' + a.download);
+  }
+
+  function reset() {
+    selectedFile = null;
+    originalText = '';
+    convertedText = '';
+    fileInput.value = '';
+    filename.textContent = '尚未選擇檔案';
+    preview.textContent = '';
+    originalPreview.textContent = '';
+    stats.textContent = '';
+    vocabularyList.replaceChildren();
+    vocabularyPanel.classList.add('hidden');
+    appliedVocabulary = [];
+    previewPanel.classList.add('hidden');
+    convertBtn.disabled = true;
+    downloadBtn.disabled = true;
+    setStatus('');
+  }
+
+  fileInput.addEventListener('change', e => readFile(e.target.files[0]));
+  convertBtn.addEventListener('click', convert);
+  downloadBtn.addEventListener('click', download);
+  resetBtn.addEventListener('click', reset);
+  document.querySelectorAll('input[name="direction"]').forEach(el => {
+    el.addEventListener('change', () => {
+      if (convertedText !== '') setStatus('轉換方向已變更，請再次按「轉換文字」以更新結果。');
+    });
+  });
+  ['dragenter', 'dragover'].forEach(name => dropzone.addEventListener(name, e => {
+    e.preventDefault(); dropzone.classList.add('dragover');
+  }));
+  ['dragleave', 'drop'].forEach(name => dropzone.addEventListener(name, e => {
+    e.preventDefault(); dropzone.classList.remove('dragover');
+  }));
+  dropzone.addEventListener('drop', e => {
+    const file = e.dataTransfer && e.dataTransfer.files[0];
+    if (file) readFile(file);
+  });
+})();
+</script>
+</body>
+</html>
