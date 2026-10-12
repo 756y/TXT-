@@ -69,6 +69,11 @@
   input[type=file] { display: none; }
   input[type=checkbox], input[type=radio] { accent-color: var(--accent); width: 17px; height: 17px; flex: 0 0 auto; }
   .filename { margin-top: 12px; overflow-wrap: anywhere; font-size: .93rem; }
+  .input-mode { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+  .input-mode button { flex: 1 1 150px; }
+  .input-mode button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .text-entry { width: 100%; min-height: 220px; resize: vertical; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--text); font: inherit; line-height: 1.7; }
+  .text-entry:focus { outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 1px; }
   .options { display: flex; flex-wrap: wrap; gap: 12px 18px; margin-top: 16px; }
   .options label { display: flex; gap: 9px; align-items: flex-start; cursor: pointer; }
   .options label:has(input[type=checkbox]) { padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--accent) 4%, var(--panel)); }
@@ -117,13 +122,24 @@
   <p class="intro">將簡體中文 TXT 轉成繁體字形，保留原本用詞、標點、空白、換行與段落結構。所有處理都在瀏覽器本機完成，不會上傳檔案。</p>
 
   <section class="panel">
-    <span class="field-label">1. 選擇 TXT 文字檔</span>
+    <span class="field-label">1. 選擇檔案或輸入文字</span>
+    <div class="input-mode" role="group" aria-label="輸入方式">
+      <button type="button" id="fileModeBtn" class="active" aria-pressed="true">選擇 TXT 檔案</button>
+      <button type="button" id="textModeBtn" aria-pressed="false">直接貼上文字</button>
+    </div>
+    <div id="fileModePanel">
     <label class="dropzone" id="dropzone" for="fileInput">
       <strong>點擊選擇檔案，或將 TXT 拖曳到這裡</strong>
       <span class="muted">目前只接受 .txt 檔案</span>
     </label>
     <input id="fileInput" type="file" accept=".txt,text/plain">
     <div id="filename" class="filename muted">尚未選擇檔案</div>
+    </div>
+    <div id="textModePanel" class="hidden">
+      <label class="field-label" for="textInput">貼上要轉換的簡體中文</label>
+      <textarea id="textInput" class="text-entry" placeholder="在這裡貼上文字……"></textarea>
+      <p class="notice">貼上的文字只會在目前瀏覽器中處理，不會上傳。</p>
+    </div>
 
     <div class="options" role="group" aria-label="轉換方向">
       <label><input type="radio" name="direction" value="tw" checked> 簡體 → 繁體（台灣正體字形）</label>
@@ -192,7 +208,13 @@
   const convertVocabulary = $('convertVocabulary');
   const vocabularyPanel = $('vocabularyPanel');
   const vocabularyList = $('vocabularyList');
+  const fileModeBtn = $('fileModeBtn');
+  const textModeBtn = $('textModeBtn');
+  const fileModePanel = $('fileModePanel');
+  const textModePanel = $('textModePanel');
+  const textInput = $('textInput');
 
+  let inputMode = 'file';
   let selectedFile = null;
   let originalText = '';
   let convertedText = '';
@@ -367,11 +389,35 @@
     }
   }
 
+  function setInputMode(mode) {
+    inputMode = mode;
+    const isFile = mode === 'file';
+    fileModePanel.classList.toggle('hidden', !isFile);
+    textModePanel.classList.toggle('hidden', isFile);
+    fileModeBtn.classList.toggle('active', isFile);
+    textModeBtn.classList.toggle('active', !isFile);
+    fileModeBtn.setAttribute('aria-pressed', String(isFile));
+    textModeBtn.setAttribute('aria-pressed', String(!isFile));
+    downloadBtn.textContent = isFile ? '下載轉換後 TXT' : '複製轉換後文字';
+    if (isFile) {
+      convertBtn.disabled = !selectedFile;
+      setStatus(selectedFile ? '檔案已準備好，按「轉換文字」即可轉換。' : '');
+    } else {
+      selectedFile = null;
+      originalText = textInput.value;
+      convertBtn.disabled = textInput.value.length === 0;
+      setStatus(textInput.value.length ? '文字已輸入，按「轉換文字」即可轉換。' : '貼上文字後，按「轉換文字」即可轉換。');
+    }
+  }
+
   async function convert() {
-    if (!selectedFile || originalText === '') {
-      if (selectedFile && originalText === '') {
-        // 空白 TXT 也是有效檔案，仍允許產出空白結果。
-      } else return;
+    if (inputMode === 'text') {
+      originalText = textInput.value;
+      if (originalText.length === 0) return;
+      selectedFile = null;
+      hadBOM = false;
+    } else if (!selectedFile) {
+      return;
     }
     convertBtn.disabled = true;
     setStatus('正在準備字形轉換元件……');
@@ -402,7 +448,7 @@
       renderVocabulary(appliedVocabulary);
       previewPanel.classList.remove('hidden');
       downloadBtn.disabled = false;
-      setStatus('轉換完成。請確認左右對照與用語清單，再下載 TXT 檔案。');
+      setStatus(inputMode === 'text' ? '轉換完成。請確認左右對照與用語清單，再複製轉換後文字。' : '轉換完成。請確認左右對照與用語清單，再下載 TXT 檔案。');
     } catch (error) {
       setStatus('轉換失敗：' + error.message);
     } finally {
@@ -410,13 +456,34 @@
     }
   }
 
-  function download() {
-    if (convertedText === null || !selectedFile) return;
+  async function download() {
+    if (convertedText === null || (inputMode === 'file' && !selectedFile)) return;
+    if (inputMode === 'text') {
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(convertedText);
+        } else {
+          const temp = document.createElement('textarea');
+          temp.value = convertedText;
+          temp.style.position = 'fixed';
+          temp.style.opacity = '0';
+          document.body.appendChild(temp);
+          temp.select();
+          const copied = document.execCommand('copy');
+          temp.remove();
+          if (!copied) throw new Error('瀏覽器不支援自動複製');
+        }
+        setStatus('已複製轉換後的完整文字，可以直接貼上使用。');
+      } catch (error) {
+        setStatus('複製失敗，請確認瀏覽器允許剪貼簿存取，或手動選取預覽文字複製。');
+      }
+      return;
+    }
     const output = (hadBOM ? '\uFEFF' : '') + convertedText;
     const blob = new Blob([output], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    const base = selectedFile.name.replace(/\.txt$/i, '');
+    const base = inputMode === 'file' && selectedFile ? selectedFile.name.replace(/\.txt$/i, '') : '貼上文字';
     a.href = url;
     a.download = base + '_繁體.txt';
     document.body.appendChild(a);
@@ -428,6 +495,8 @@
 
   function reset() {
     selectedFile = null;
+    textInput.value = '';
+    setInputMode('file');
     originalText = '';
     convertedText = '';
     fileInput.value = '';
@@ -445,6 +514,18 @@
   }
 
   fileInput.addEventListener('change', e => readFile(e.target.files[0]));
+  fileModeBtn.addEventListener('click', () => setInputMode('file'));
+  textModeBtn.addEventListener('click', () => setInputMode('text'));
+  textInput.addEventListener('input', () => {
+    if (inputMode !== 'text') return;
+    originalText = textInput.value;
+    convertBtn.disabled = textInput.value.length === 0;
+    downloadBtn.disabled = true;
+    convertedText = '';
+    previewPanel.classList.add('hidden');
+    vocabularyPanel.classList.add('hidden');
+    setStatus(textInput.value.length ? '文字已輸入，按「轉換文字」即可轉換。' : '請先貼上要轉換的文字。');
+  });
   convertBtn.addEventListener('click', convert);
   downloadBtn.addEventListener('click', download);
   resetBtn.addEventListener('click', reset);
